@@ -253,7 +253,7 @@ int main(int argc, char **argv)
 		db_read_seq_test();
 	else if(op==OP_GET)
 		db_read_random_test();
-	return 1;
+	
 	btree_close(&btree);
 
 	return 0;
