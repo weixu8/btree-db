@@ -1,9 +1,7 @@
 CFLAGS =  -g
-OBJS = btree.o main.o
+OBJS = btree.o test.o
 
-btree: $(OBJS)
-	$(CC) -o $@ $(OBJS)  -lrt
+test: $(OBJS)
+	$(CC) -o $@ $(OBJS)
 clean:	
-	rm -rf *.o  btree
-cleanall:	
-	rm -rf *.o *.db  *.idx btree
+	rm -rf *.o *.db  *.idx test
