@@ -194,6 +194,8 @@ void btree_close(struct btree *btree)
 		if (btree->cache[i].offset)
 			free(btree->cache[i].table);
 	}
+
+	free(btree);
 }
 
 static size_t _round_power2(size_t val)
