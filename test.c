@@ -1,8 +1,7 @@
 /*
- * nessDB storage engine
+ * B-tree storage engine
  * Copyright (c) 2011-2012, BohuTANG <overred.shuttler at gmail dot com>
  * All rights reserved.
- * Code is licensed with BSD. See COPYING.BSD file.
  *
  */
 

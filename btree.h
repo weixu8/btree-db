@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2012 
+ * japeq
+ * BohuTANG <overred.shuttler at gmail dot com>
+ * All rights reserved.
+ * Code is licensed with BSD. See COPYING.LGPL file.
+ *
+ */
+
 #ifndef BTREE_H
 #define BTREE_H
 
