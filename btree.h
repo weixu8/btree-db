@@ -31,10 +31,6 @@ struct btree_cache {
 	struct btree_table *table;
 };
 
-struct blob_info {
-	int len;
-};
-
 struct btree_super {
 	uint32_t top;
 	uint32_t free_top;

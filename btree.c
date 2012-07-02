@@ -4,26 +4,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
-#ifdef _WIN32
-#include <winsock.h>
-#else
-/* Unix */
-#include <arpa/inet.h> /* htonl/ntohl */
-#define O_BINARY 0
-#endif
 
 #define DBEXT 	".db"
 #define IDXEXT	".idx"
-
-#define FREE_QUEUE_LEN	64
-
-struct chunk {
-	uint32_t offset;
-	uint32_t len;
-};
-
-static struct chunk free_queue[FREE_QUEUE_LEN];
-static size_t free_queue_len = 0;
 
 static int _file_exists(const char *path)
 {
@@ -41,7 +24,7 @@ static int _cmp_key(const char *a, const char *b)
 	return strcmp(a, b);
 }
 
-static struct btree_table *_alloc_table(struct btree *btree)
+static struct btree_table *_alloc_table()
 {
 	struct btree_table *table = malloc(sizeof *table);
 	memset(table, 0, sizeof *table);
@@ -103,8 +86,8 @@ static void _flush_table(struct btree *btree, struct btree_table *table, uint32_
 static int _btree_open(struct btree *btree, const char *idxname,const char *dbname)
 {
 	memset(btree, 0, sizeof *btree);
-	btree->fd = open(idxname, O_RDWR | O_BINARY);
-	btree->db_fd = open(dbname, O_RDWR | O_BINARY);
+	btree->fd = open(idxname, O_RDWR);
+	btree->db_fd = open(dbname, O_RDWR);
 
 	if (btree->fd < 0)
 		return -1;
@@ -124,15 +107,6 @@ static int _btree_open(struct btree *btree, const char *idxname,const char *dbna
 
 static void _flush_super(struct btree *btree)
 {
-	size_t i;
-
-	for (i = 0; i < free_queue_len; ++i) {
-		struct chunk *chunk = &free_queue[i];
-		//free_chunk(btree, chunk->offset, chunk->len);
-	}
-
-	free_queue_len = 0;
-
 	struct btree_super super;
 
 	memset(&super, 0, sizeof super);
@@ -144,58 +118,6 @@ static void _flush_super(struct btree *btree)
 		fprintf(stderr, "btree: I/O error\n");
 		abort();
 	}
-}
-
-static int _btree_creat(struct btree *btree, const char *idxname,const char* dbname)
-{
-	int magic = 2012;
-
-	memset(btree, 0, sizeof *btree);
-	btree->fd = open(idxname, O_RDWR | O_TRUNC | O_CREAT | O_BINARY, 0644);
-	btree->db_fd = open(dbname, O_RDWR | O_TRUNC | O_CREAT | O_BINARY, 0644);
-	if (btree->fd < 0)
-		return -1;
-
-	_flush_super(btree);
-
-	btree->alloc = sizeof(struct btree_super);
-	btree->db_alloc = sizeof(int);
-	write(btree->db_fd, &magic, sizeof(int));
-	
-	lseek(btree->fd, 0, SEEK_END);
-
-	return 0;
-}
-
-struct btree *btree_new(const char* fname)
-{
-	char dbname[1024], idxname[1024];
-	struct btree *b = malloc(sizeof(*b));
-
-	memset(b, 0, sizeof(*b));
-	sprintf(idxname, "%s%s", fname,IDXEXT);
-	sprintf(dbname, "%s%s", fname,DBEXT);
-
-	if(_file_exists(idxname))
-		_btree_open(b, idxname, dbname);
-	else
-		_btree_creat(b, idxname, dbname);
-
-	return b;
-}
-
-void btree_close(struct btree *btree)
-{
-	size_t i;
-
-	close(btree->fd);
-
-	for (i = 0; i < CACHE_SLOTS; ++i) {
-		if (btree->cache[i].offset)
-			free(btree->cache[i].table);
-	}
-
-	free(btree);
 }
 
 static size_t _round_power2(size_t val)
@@ -237,7 +159,7 @@ static uint32_t _insert_data(struct btree *btree, struct slice *sv)
 {
 	uint32_t offset = _alloc_dbchunk(btree, sizeof(int) + sv->len);
 
-	lseek64(btree->db_fd, offset, SEEK_SET);
+	lseek(btree->db_fd, offset, SEEK_SET);
 	if (write(btree->db_fd, &sv->len, sizeof(int)) != sizeof(int)) {
 		fprintf(stderr, "btree: I/O error\n");
 		abort();
@@ -256,7 +178,7 @@ static uint32_t _split_table(struct btree *btree, struct btree_table *table, cha
 	memcpy(key, table->items[TABLE_SIZE / 2].key, KEY_MAX_LENGTH);
 	*offset = table->items[TABLE_SIZE / 2].offset;
 
-	struct btree_table *new_table = _alloc_table(btree);
+	struct btree_table *new_table = _alloc_table();
 	new_table->size = table->size - TABLE_SIZE / 2 - 1;
 
 	table->size = TABLE_SIZE / 2;
@@ -316,9 +238,8 @@ static uint32_t _insert_table(struct btree *btree, uint32_t table_offset, struct
 	}
 
 	table->size++;
-	memmove(&table->items[i + 1], &table->items[i],
-		(table->size - i) * sizeof(struct btree_item));
-	memcpy(table->items[i].key, sk->data, KEY_MAX_LENGTH);
+	memmove(&table->items[i + 1], &table->items[i], (table->size - i) * sizeof(struct btree_item));
+	memcpy(table->items[i].key, sk->data, sk->len);
 	table->items[i].offset = offset;
 	table->items[i].child = left_child;
 	table->items[i + 1].child = right_child;
@@ -351,7 +272,7 @@ uint32_t _insert_toplevel(struct btree *btree, uint32_t *table_offset, struct sl
 	}
 
 	/* create new top level table */
-	struct btree_table *new_table = _alloc_table(btree);
+	struct btree_table *new_table = _alloc_table();
 	new_table->size = 1;
 	memcpy(new_table->items[0].key, sk->data, sk->len);
 	new_table->items[0].offset = offset;
@@ -366,8 +287,65 @@ uint32_t _insert_toplevel(struct btree *btree, uint32_t *table_offset, struct sl
 	return ret;
 }
 
+
+
+static int _btree_creat(struct btree *btree, const char *idxname,const char* dbname)
+{
+	int magic = 2012;
+
+	memset(btree, 0, sizeof *btree);
+	btree->fd = open(idxname, O_RDWR | O_TRUNC | O_CREAT, 0644);
+	btree->db_fd = open(dbname, O_RDWR | O_TRUNC | O_CREAT, 0644);
+	if (btree->fd < 0)
+		return -1;
+
+	_flush_super(btree);
+
+	btree->alloc = sizeof(struct btree_super);
+	btree->db_alloc = sizeof(int);
+	write(btree->db_fd, &magic, sizeof(int));
+	
+	lseek(btree->fd, 0, SEEK_END);
+
+	return 0;
+}
+
+struct btree *btree_new(const char* fname)
+{
+	char dbname[1024], idxname[1024];
+	struct btree *b = malloc(sizeof(*b));
+
+	memset(b, 0, sizeof(*b));
+	sprintf(idxname, "%s%s", fname,IDXEXT);
+	sprintf(dbname, "%s%s", fname,DBEXT);
+
+	if(_file_exists(idxname))
+		_btree_open(b, idxname, dbname);
+	else
+		_btree_creat(b, idxname, dbname);
+
+	return b;
+}
+
+void btree_close(struct btree *btree)
+{
+	size_t i;
+
+	close(btree->fd);
+
+	for (i = 0; i < CACHE_SLOTS; ++i) {
+		if (btree->cache[i].offset)
+			free(btree->cache[i].table);
+	}
+
+	free(btree);
+}
+
 void btree_insert(struct btree *btree, struct slice *sk, struct slice *sv)
 {
+	if (sk->len >= KEY_MAX_LENGTH)
+		abort();
+
 	_insert_toplevel(btree, &btree->top, sk, sv);
 	_flush_super(btree);
 }
@@ -404,7 +382,7 @@ static uint32_t _lookup(struct btree *btree, uint32_t table_offset, const char *
 struct slice *btree_get(struct btree *btree, struct slice *sk)
 {
 	uint32_t offset;
-	struct blob_info info;
+	uint32_t len;
 	char *data;
 	struct slice *sv;
 	
@@ -416,10 +394,10 @@ struct slice *btree_get(struct btree *btree, struct slice *sk)
 
 	lseek(btree->db_fd, offset, SEEK_SET);
 
-	if (read(btree->db_fd, &info, sizeof info) != (ssize_t) sizeof info)
+	if (read(btree->db_fd, &len, sizeof(int)) != sizeof(int))
 		return NULL;
 
-	sv->len = info.len;
+	sv->len = len;
 	data = malloc(sv->len + 1);
 	memset(data, 0, sv->len + 1);
 

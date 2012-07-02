@@ -1,4 +1,4 @@
-CFLAGS =  -g
+CFLAGS =  -g  -std=c99 -W -Wall -Werror
 OBJS = btree.o test.o
 
 test: $(OBJS)

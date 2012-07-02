@@ -6,17 +6,13 @@
  *
  */
 
-/*NOTE:
-	How to do
-	=========
-		$make db-bench
-	 	$./db-bench <op: write | read> <count>
-*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
+#include <sys/time.h>
 #include "btree.h"
 
 
@@ -37,7 +33,8 @@ long long get_ustime_sec(void)
 	return ust / 1000000;
 }
 
-void _random_key(char *key,int length) {
+void _random_key(char *key,int length) 
+{
 	int i;
 	char salt[36]= "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -60,7 +57,6 @@ void _print_header(int count)
 
 void _print_environment()
 {
-	time_t now = time(NULL);
 	printf("B-Tree:		version %s(for nessDB storage engine)\n", V);
 
 	int num_cpus = 0;
@@ -103,16 +99,15 @@ void _write_test(long int count)
 
 	char key[KSIZE + 1];
 	char val[VSIZE + 1];
-	char *tmp;
 
-	memset(key, 0, KSIZE + 1);
-	memset(val, 0, VSIZE + 1);
 
 	btree = btree_new("test");
 	start = get_ustime_sec();
 	for (i = 0; i < count; i++) {
+		memset(key, 0, KSIZE + 1);
+		memset(val, 0, VSIZE + 1);
+
 		_random_key(key, KSIZE);
-		tmp = key;
 		snprintf(val, VSIZE, "val:%d", i);
 
 		sk.len = KSIZE;
@@ -127,7 +122,6 @@ void _write_test(long int count)
 		}
 	}
 
-	printf("%s\n", tmp);
 	btree_close(btree);
 
 	end = get_ustime_sec();
@@ -142,7 +136,6 @@ void _write_test(long int count)
 
 void _readone_test(char *key)
 {
-	int ret;
 	struct slice sk;
 	struct slice *sv;
 	struct btree *btree;
