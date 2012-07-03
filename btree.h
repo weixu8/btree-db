@@ -24,7 +24,7 @@ struct slice {
 
 struct btree_item {
 	char key[KEY_MAX_LENGTH];
-	uint64_t offset;
+	uint32_t offset;
 	uint32_t child;
 } __attribute__((packed));
 
@@ -32,7 +32,7 @@ struct btree_item {
 
 struct btree_table {
 	struct btree_item items[TABLE_SIZE];
-	uint8_t size;
+	uint16_t size;
 } __attribute__((packed));
 
 struct btree_cache {
@@ -61,5 +61,6 @@ void btree_close(struct btree *btree);
 void btree_insert(struct btree *btree, struct slice *sk, struct slice *sv);
 struct slice *btree_get(struct btree *btree, struct slice *sk);
 int btree_delete(struct btree *btree, struct slice *sk);
+void btree_walk(struct btree *btree);
 
 #endif

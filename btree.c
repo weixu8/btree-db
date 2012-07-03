@@ -55,9 +55,11 @@ static struct btree_table *_get_table(struct btree *btree, uint32_t offset)
 
 	struct btree_table *table = malloc(sizeof *table);
 
+	memset(table, 0, sizeof *table);
+
 	lseek(btree->fd, offset, SEEK_SET);
 	if (read(btree->fd, table, sizeof *table) != (ssize_t) sizeof *table) {
-		fprintf(stderr, "btree: I/O error\n");
+		fprintf(stderr, "btree: I/O error, offset:%d\n", offset);
 		abort();
 	}
 
@@ -296,8 +298,6 @@ uint32_t _insert_toplevel(struct btree *btree, uint32_t *table_offset, struct sl
 	return ret;
 }
 
-
-
 static int _btree_creat(struct btree *btree, const char *idxname,const char* dbname)
 {
 	int magic = 2012;
@@ -365,6 +365,8 @@ static uint32_t _lookup(struct btree *btree, uint32_t table_offset, const char *
 		struct btree_table *table = _get_table(btree, table_offset);
 		size_t left = 0, right = table->size, i;
 
+		printf(" table size #%d \n", table->size);
+
 		while (left < right) {
 			i = (right - left) / 2 + left;
 			int cmp = _cmp_key(key, table->items[i].key);
@@ -419,4 +421,32 @@ struct slice *btree_get(struct btree *btree, struct slice *sk)
 	sv->data = data;
 
 	return sv;
+}
+
+void _walk(struct btree *btree, uint32_t table_offset)
+{
+	int i;
+	int size;
+	struct btree_table *table = _get_table(btree, table_offset);
+
+	size = table->size;
+	if (size == 0)
+		return;
+
+	for (i = 0; i < size; i++) {
+
+		int child = table->items[i].child;
+		if (child !=0)
+			_walk(btree, child);
+
+		printf(" | %s ", table->items[i].key);
+	}
+
+	printf("\n------------------------\n");
+	_put_table(btree, table, table_offset);
+}
+
+void btree_walk(struct btree *btree)
+{
+	_walk(btree, btree->top);
 }

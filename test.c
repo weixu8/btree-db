@@ -160,25 +160,33 @@ void _readone_test(char *key)
 	btree_close(btree);
 }
 
+void _walk_test()
+{
+	struct btree *btree = btree_new("test");
+
+	btree_walk(btree);
+}
+
 int main(int argc,char** argv)
 {
 	long int count;
 
 	srand(time(NULL));
-	if (argc != 3) {
-		fprintf(stderr,"Usage: db-bench <op: write | readone> <count>\n");
-		exit(1);
-	}
 	
-	if (strcmp(argv[1], "write") == 0) {
+	if (strcmp(argv[1], "write") == 0 && argc == 3) {
 		count = atoi(argv[2]);
 		_print_header(count);
 		_print_environment();
 		_write_test(count);
-	} else if (strcmp(argv[1], "readone") == 0) {
+	} else if (strcmp(argv[1], "readone") == 0 && argc == 3) {
 		_readone_test(argv[2]);
+	} else if (strcmp(argv[1], "walk") == 0) {
+		_walk_test();
 	} else {
-		fprintf(stderr,"Usage: db-bench <op: write | readone> <count>\n");
+		fprintf(stderr,"Usage:\n"
+				"\t ./test write <count>\n"
+				"\t ./test readone <key>\n"
+				"\t ./test walk\n");
 		exit(1);
 	}
 
